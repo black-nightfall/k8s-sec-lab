@@ -1,0 +1,40 @@
+#!/usr/bin/expect -f
+
+set ip [lindex $argv 0]
+set user [lindex $argv 1]
+set password [lindex $argv 2]
+
+set timeout 30
+
+spawn ssh -o StrictHostKeyChecking=no $user@$ip
+
+expect {
+    "*assword:" {
+        send "$password\r"
+    }
+    timeout {
+        puts "Timeout waiting for SSH password prompt"
+        exit 1
+    }
+}
+
+expect {
+    "$ " {
+        send "echo '--- Service Status ---'; systemctl is-enabled kubelet containerd; echo '--- Swap Status ---'; sudo swapon --show; echo '--- Manifests ---'; sudo ls /etc/kubernetes/manifests; echo '--- Containerd Config ---'; grep SystemdCgroup /etc/containerd/config.toml; echo '--- Runtime Containers ---'; sudo crictl ps -a --output table | head -n 10\r"
+    }
+    timeout {
+        puts "Timeout waiting for shell prompt"
+        exit 1
+    }
+}
+
+expect {
+    "*assword*" {
+        send "$password\r"
+        exp_continue
+    }
+    -- "--- Service Status ---" {
+        exp_continue
+    }
+    eof
+}

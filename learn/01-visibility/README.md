@@ -7,11 +7,11 @@
 
 ## 📝 学习任务
 
-* [x] **网络层升级 (已完成)**
-  * 状态: Flannel -> Cilium 迁移完毕。
-* [x] **启用监控眼 (已完成)**
-  * 状态: Hubble UI 已部署。
-  * **练习**: 打开 Hubble UI (`http://192.168.0.200:8888`)，随意部署一个 Nginx Pod，观察它在 Hubble 中的连线。
+* [ ] **网络层升级**
+  * 状态: 将 Flannel 迁移至 Cilium。
+* [ ] **启用监控眼**
+  * 状态: 部署 Hubble UI。
+  * **练习**: 打开 Hubble UI，部署一个测试 Pod (如 Nginx)，观察其在 Hubble 中的流量连线。
 * [ ] **熟悉工具链 (K9s)**
   * **练习**: 使用 K9s 进入一个 Pod 的 Shell (`s` 键)，尝试 `ping google.com`。
 
