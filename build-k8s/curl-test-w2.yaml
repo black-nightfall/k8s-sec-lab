@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: curl-worker2
+spec:
+  nodeName: worker-2
+  restartPolicy: Never
+  containers:
+  - name: curl
+    image: curlimages/curl
+    command: ["curl", "-k", "-v", "--connect-timeout", "5", "https://10.96.0.1:443"]
