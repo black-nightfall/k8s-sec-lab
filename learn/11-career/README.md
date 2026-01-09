@@ -16,7 +16,7 @@
 *   **AWS Certified Security – Specialty**: 证明你懂 AWS 的 IAM, VPC, KMS。
 *   **CCSP (Cloud Security Professional)**: 偏理论和管理，适合以后转架构或合规。
 
-## 💼 SDL 转岗分析
+## 💼 SDL 转型分析
 
 你现在的 **SDL (Security Development Lifecycle)** 背景是巨大的优势！
 *   **优势**: 你懂代码审阅 (Code Review)、威胁建模 (Threat Modeling)、漏洞原理。这些是运维出身的安全人员最缺的。
