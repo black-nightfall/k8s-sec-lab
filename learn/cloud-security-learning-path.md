@@ -68,8 +68,8 @@
 
 ### 🎓 终章：职业认证 (Certificate)
 ### [11 职业规划 (Career)](./11-career/)
-*   **重点**: **CKS (必考)**, AWS Security, 面试策略
-*   **分析**: 详细的 SDL -> Cloud Security 转岗指南
+*   **重点**: **CKS (必考)**, AWS Security
+*   **分析**: 详细的 SDL -> Cloud Security 
 
 ---
 
