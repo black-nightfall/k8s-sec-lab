@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: run-as-nonroot
+  labels:
+    example: basic
+spec:
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 3000
+  containers:
+    - name: alpine
+      image: alpine
+      command: ["sleep", "3600"]

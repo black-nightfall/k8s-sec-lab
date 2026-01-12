@@ -1,0 +1,37 @@
+# Dockerfile.secure
+# ✅ 安全加固的Dockerfile示例
+
+# 使用最小化基础镜像（Alpine）并固定版本
+FROM alpine:3.19
+
+# 创建非root用户
+RUN addgroup -g 1000 appuser && \
+    adduser -D -u 1000 -G appuser appuser
+
+# 只安装必要的包
+RUN apk add --no-cache \
+    ca-certificates \
+    && rm -rf /var/cache/apk/*
+
+# 设置工作目录
+WORKDIR /app
+
+# 复制应用文件（设置正确的所有者）
+COPY --chown=appuser:appuser ./app /app
+
+# 设置正确的文件权限
+RUN chmod 755 /app && \
+    chmod 500 /app/binary
+
+# 切换到非root用户
+USER appuser
+
+# 只暴露必要的端口（使用非特权端口）
+EXPOSE 8080
+
+# 健康检查
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD wget --quiet --tries=1 --spider http://localhost:8080/health || exit 1
+
+# 使用非shell形式的CMD（更安全）
+CMD ["/app/binary"]

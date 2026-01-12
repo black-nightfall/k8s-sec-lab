@@ -1,0 +1,160 @@
+name: Image Security Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  scan-build-sign:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      security-events: write
+      id-token: write # For cosign keyless signing
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # ==========================================
+      # Step 1: 构建镜像
+      # ==========================================
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: false
+          load: true
+          tags: ${{ env.IMAGE_NAME }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # ==========================================
+      # Step 2: 漏洞扫描
+      # ==========================================
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: "${{ env.IMAGE_NAME }}:${{ github.sha }}"
+          format: "sarif"
+          output: "trivy-results.sarif"
+          severity: "CRITICAL,HIGH"
+          exit-code: "1" # 有Critical/High漏洞就失败
+
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: "trivy-results.sarif"
+
+      # ==========================================
+      # Step 3: 密钥扫描
+      # ==========================================
+      - name: Scan for secrets
+        run: |
+          trivy fs --scanners secret --severity HIGH,CRITICAL . > secret-scan.txt
+          if [ -s secret-scan.txt ]; then
+            echo "::error::Secrets detected in repository"
+            cat secret-scan.txt
+            exit 1
+          fi
+
+      # ==========================================
+      # Step 4: 生成SBOM
+      # ==========================================
+      - name: Generate SBOM with Syft
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
+          syft ${{ env.IMAGE_NAME }}:${{ github.sha }} -o spdx-json > sbom-spdx.json
+          syft ${{ env.IMAGE_NAME }}:${{ github.sha }} -o cyclonedx-json > sbom-cyclonedx.json
+
+      - name: Upload SBOM artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: sbom
+          path: |
+            sbom-spdx.json
+            sbom-cyclonedx.json
+
+      # ==========================================
+      # Step 5: 推送镜像（仅main分支）
+      # ==========================================
+      - name: Log in to Container Registry
+        if: github.ref == 'refs/heads/main'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push image
+        if: github.ref == 'refs/heads/main'
+        run: |
+          docker tag ${{ env.IMAGE_NAME }}:${{ github.sha }} \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          docker tag ${{ env.IMAGE_NAME }}:${{ github.sha }} \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+
+      # ==========================================
+      # Step 6: 签名镜像
+      # ==========================================
+      - name: Install Cosign
+        if: github.ref == 'refs/heads/main'
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign image with Cosign (keyless)
+        if: github.ref == 'refs/heads/main'
+        env:
+          COSIGN_EXPERIMENTAL: 1
+        run: |
+          cosign sign --yes \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+
+      # ==========================================
+      # Step 7: 生成签名证明
+      # ==========================================
+      - name: Attach SBOM attestation
+        if: github.ref == 'refs/heads/main'
+        env:
+          COSIGN_EXPERIMENTAL: 1
+        run: |
+          cosign attest --yes \
+            --predicate sbom-spdx.json \
+            --type spdx \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+
+      # ==========================================
+      # Step 8: 验证签名
+      # ==========================================
+      - name: Verify signature
+        if: github.ref == 'refs/heads/main'
+        env:
+          COSIGN_EXPERIMENTAL: 1
+        run: |
+          cosign verify \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} | jq
+
+      # ==========================================
+      # Step 9: 生成摘要
+      # ==========================================
+      - name: Generate release summary
+        if: github.ref == 'refs/heads/main'
+        run: |
+          echo "## 📦 Image Release Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- **Image**: \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Signed**: ✅ Yes" >> $GITHUB_STEP_SUMMARY
+          echo "- **SBOM**: ✅ Generated" >> $GITHUB_STEP_SUMMARY
+          echo "- **Vulnerabilities**: Scanned with Trivy" >> $GITHUB_STEP_SUMMARY

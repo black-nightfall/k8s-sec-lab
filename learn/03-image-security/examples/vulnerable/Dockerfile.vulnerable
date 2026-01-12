@@ -1,0 +1,46 @@
+# Dockerfile.vulnerable
+# ⚠️ 此Dockerfile故意包含多种安全问题，仅用于学习演示！
+
+FROM ubuntu:18.04
+
+# 问题1: 以root运行（默认）
+# 问题2: 使用旧版本OS（Ubuntu 18.04有大量CVE）
+
+# 问题3: 硬编码密钥
+ENV AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE
+ENV AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+ENV DATABASE_URL=postgresql://admin:password123@db.example.com:5432/mydb
+ENV API_KEY=sk-1234567890abcdefghijklmnopqrstuvwxyz
+
+# 问题4: 安装不必要的包，增加攻击面
+RUN apt-get update && apt-get install -y \
+    wget \
+    curl \
+    vim \
+    netcat \
+    nmap \
+    telnet \
+    ftp \
+    openssh-server \
+    && rm -rf /var/lib/apt/lists/*
+
+# 问题5: 使用latest或未固定版本
+RUN wget https://example.com/app-latest.tar.gz -O /tmp/app.tar.gz
+
+# 问题6: 暴露危险端口
+EXPOSE 22 23 3306 6379 27017
+
+# 问题7: 以root身份运行应用
+WORKDIR /app
+COPY . /app
+
+# 问题8: 文件权限过于宽松
+RUN chmod 777 /app -R
+
+# 问题9: 容器内运行SSH（不推荐）
+RUN mkdir /var/run/sshd
+RUN echo 'root:password' | chpasswd
+
+# 问题10: 没有健康检查
+
+CMD ["/usr/sbin/sshd", "-D"]

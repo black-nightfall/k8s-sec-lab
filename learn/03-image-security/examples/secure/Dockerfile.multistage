@@ -1,0 +1,45 @@
+# 多阶段构建示例：Go应用
+
+# ==========================================
+# Stage 1: 构建阶段
+# ==========================================
+FROM golang:1.21-alpine AS builder
+
+# 安装构建依赖
+RUN apk add --no-cache git ca-certificates
+
+WORKDIR /build
+
+# 复制go mod文件并下载依赖（利用Docker缓存）
+COPY go.mod go.sum ./
+RUN go mod download
+
+# 复制源码
+COPY . .
+
+# 构建二进制文件
+# - CGO_ENABLED=0: 静态链接
+# - GOOS=linux: 目标OS
+# - GOARCH=amd64: 目标架构
+# - -ldflags="-w -s": 去除调试信息，减小体积
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+    go build -ldflags="-w -s" -o /app/myapp cmd/main.go
+
+# ==========================================
+# Stage 2: 运行阶段（Distroless）
+# ==========================================
+FROM gcr.io/distroless/static-debian11:nonroot
+
+# 从构建阶段复制二进制文件
+COPY --from=builder --chown=nonroot:nonroot /app/myapp /myapp
+
+# 健康检查端点
+HEALTHCHECK --interval=30s --timeout=3s \
+    CMD ["/myapp", "healthcheck"]
+
+# 非root用户（distroless内置）
+USER nonroot:nonroot
+
+EXPOSE 8080
+
+ENTRYPOINT ["/myapp"]

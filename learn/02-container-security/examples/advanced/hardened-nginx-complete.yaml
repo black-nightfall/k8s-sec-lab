@@ -1,0 +1,81 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: hardened-nginx
+  labels:
+    app: hardened-nginx
+    security: hardened
+spec:
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 101
+    runAsGroup: 101
+    fsGroup: 101
+    seccompProfile:
+      type: RuntimeDefault
+
+  containers:
+    - name: nginx
+      image: nginx-hardened:1.0
+
+      ports:
+        - containerPort: 8080
+          protocol: TCP
+
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRoot Filesystem: true
+        runAsNonRoot: true
+        runAsUser: 101
+        capabilities:
+          drop:
+            - ALL
+
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          cpu: 100m
+          memory: 128Mi
+
+      livenessProbe:
+        httpGet:
+          path: /
+          port: 8080
+        initialDelaySeconds: 10
+        periodSeconds: 10
+
+      readinessProbe:
+        httpGet:
+          path: /
+          port: 8080
+        initialDelaySeconds: 5
+        periodSeconds: 5
+
+      volumeMounts:
+        - name: cache
+          mountPath: /var/cache/nginx
+        - name: run
+          mountPath: /var/run
+
+  volumes:
+    - name: cache
+      emptyDir: {}
+    - name: run
+      emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hardened-nginx
+  labels:
+    app: hardened-nginx
+spec:
+  selector:
+    app: hardened-nginx
+  ports:
+    - port: 80
+      targetPort: 8080
+      protocol: TCP
+  type: NodePort
